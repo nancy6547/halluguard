@@ -26,10 +26,21 @@ class Scorer(Protocol):
     def score(self, premises: Sequence[str], claim: str) -> list[Score]: ...
 
 
+def score_many(scorer, premises: Sequence[str], claims: Sequence[str]) -> list[list[Score]]:
+    """Scores for every (premise, claim) pair, one list per claim.
+
+    Uses the scorer's batched `score_many` when it has one (one model call per
+    answer instead of one per sentence), otherwise falls back to `score`.
+    """
+    if hasattr(scorer, "score_many"):
+        return scorer.score_many(premises, claims)
+    return [scorer.score(premises, c) for c in claims]
+
+
 class NLIScorer:
     """Cross-encoder NLI. Default: cross-encoder/nli-deberta-v3-base."""
 
-    def __init__(self, model: str = "cross-encoder/nli-deberta-v3-base", batch_size: int = 16, device: str | None = None):
+    def __init__(self, model: str = "cross-encoder/nli-deberta-v3-base", batch_size: int = 32, device: str | None = None):
         from sentence_transformers import CrossEncoder  # imported lazily: heavy
 
         self.name = f"nli:{model.split('/')[-1]}"
@@ -40,15 +51,21 @@ class NLIScorer:
         self.i_contra = labels["contradiction"]
 
     def score(self, premises: Sequence[str], claim: str) -> list[Score]:
-        if not premises:
-            return []
+        return self.score_many(premises, [claim])[0]
+
+    def score_many(self, premises: Sequence[str], claims: Sequence[str]) -> list[list[Score]]:
+        """All (premise, claim) pairs of one answer in a single batched model call."""
+        if not premises or not claims:
+            return [[] for _ in claims]
         import numpy as np
 
-        logits = self.model.predict([(p, claim) for p in premises], batch_size=self.batch_size, show_progress_bar=False)
-        logits = np.atleast_2d(logits)
+        pairs = [(p, c) for c in claims for p in premises]
+        logits = np.atleast_2d(self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False))
         e = np.exp(logits - logits.max(axis=1, keepdims=True))
         probs = e / e.sum(axis=1, keepdims=True)
-        return [Score(float(p[self.i_entail]), float(p[self.i_contra])) for p in probs]
+        flat = [Score(float(p[self.i_entail]), float(p[self.i_contra])) for p in probs]
+        n = len(premises)
+        return [flat[i * n:(i + 1) * n] for i in range(len(claims))]
 
 
 class CosineScorer:
@@ -61,11 +78,16 @@ class CosineScorer:
         self.model = SentenceTransformer(model, device=device)
 
     def score(self, premises: Sequence[str], claim: str) -> list[Score]:
-        if not premises:
-            return []
-        emb = self.model.encode([claim, *premises], normalize_embeddings=True)
-        sims = emb[1:] @ emb[0]
-        return [Score(float(max(0.0, s))) for s in sims]
+        return self.score_many(premises, [claim])[0]
+
+    def score_many(self, premises: Sequence[str], claims: Sequence[str]) -> list[list[Score]]:
+        """Encode the context windows once per answer, not once per sentence."""
+        if not premises or not claims:
+            return [[] for _ in claims]
+        emb = self.model.encode([*claims, *premises], normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+        c, p = emb[: len(claims)], emb[len(claims):]
+        sims = c @ p.T
+        return [[Score(float(max(0.0, s))) for s in row] for row in sims]
 
 
 _WORD = re.compile(r"[a-z0-9]+(?:[.,][0-9]+)*")

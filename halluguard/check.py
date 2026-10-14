@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-from .scorers import Scorer
+from .scorers import Scorer, score_many
 from .split import Span, sentences, windows
 
 SUPPORTED, UNSUPPORTED, CONTRADICTED = "supported", "unsupported", "contradicted"
@@ -48,9 +48,9 @@ def verdict(support: float, contradiction: float, threshold: float, contra_thres
 def score_claims(answer: str, context: str, scorer: Scorer, max_words: int = 120, min_claim_words: int = 4) -> list[tuple[Span, float, float, str]]:
     """Score every claim in `answer`: (span, best support, its contradiction, evidence)."""
     wins = windows(context, max_words=max_words)
+    claims = sentences(answer, min_words=min_claim_words)
     out = []
-    for claim in sentences(answer, min_words=min_claim_words):
-        scores = scorer.score(wins, claim.text)
+    for claim, scores in zip(claims, score_many(scorer, wins, [c.text for c in claims])):
         if not scores:
             out.append((claim, 0.0, 0.0, ""))
             continue
