@@ -21,3 +21,7 @@ halluguard = "halluguard.cli:main"
 
 [tool.setuptools]
 packages = ["halluguard"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
