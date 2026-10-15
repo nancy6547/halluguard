@@ -87,7 +87,7 @@ for c in rep.claims:
 rep.hallucinated   # True if any sentence is unsupported or contradicted
 ```
 
-**Live demo: [halluguard.streamlit.app](https://halluguard.streamlit.app)** (runs the small model, `nli-deberta-v3-xsmall`, to fit free hosting). Locally: `pip install -e ".[app]"` then `streamlit run app.py`. It highlights each sentence green, amber or red and shows the passage it was checked against.
+**[Live demo](https://halluguard-ak4qp46x8utv6muwu3mgcd.streamlit.app)** (runs the small model, `nli-deberta-v3-xsmall`, to fit free hosting). Locally: `pip install -e ".[app]"` then `streamlit run app.py`. It highlights each sentence green, amber or red and shows the passage it was checked against.
 
 ## Limitations
 
