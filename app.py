@@ -10,17 +10,35 @@ import streamlit as st
 
 from halluguard import CONTRADICTED, SUPPORTED, NLIScorer, check
 
-MODEL = os.getenv("HALLUGUARD_MODEL", "cross-encoder/nli-deberta-v3-base")
+# The hosted demo uses the small model so it fits in Streamlit Cloud's memory.
+# Run locally with HALLUGUARD_MODEL=cross-encoder/nli-deberta-v3-base for the benchmarked one.
+MODEL = os.getenv("HALLUGUARD_MODEL", "cross-encoder/nli-deberta-v3-xsmall")
 
 EXAMPLE_CONTEXT = (
     "The Eiffel Tower is a wrought-iron lattice tower in Paris. It was completed in 1889 as the entrance arch "
     "for the World's Fair. The tower is 330 metres tall, including its antennas. Its design is credited to the "
     "engineering company of Gustave Eiffel. About 7 million people visit it every year."
 )
+EXAMPLES = {}
 EXAMPLE_ANSWER = (
     "The Eiffel Tower in Paris was completed in 1889 for the World's Fair. It is 330 metres tall. "
     "It was built from steel to resist corrosion. Around 7 million people visit each year, "
     "and it was the tallest structure in Europe until 1990."
+)
+
+
+EXAMPLES["Eiffel Tower (one wrong fact, one made up)"] = (EXAMPLE_CONTEXT, EXAMPLE_ANSWER)
+EXAMPLES["Company report (numbers changed)"] = (
+    "Northwind's revenue was $4.2 million in 2023, up from $3.1 million in 2022. The company has 340 employees "
+    "and its headquarters is in Pune. It opened an office in Rotterdam in 2021.",
+    "Northwind's revenue was $9.1 million in 2021. The company has 340 employees. "
+    "Its headquarters is in Pune, and it opened a Rotterdam office in 2021.",
+)
+EXAMPLES["Leave policy (all supported)"] = (
+    "Employees get 24 days of paid annual leave. Up to 5 unused leave days can be carried over to the next year. "
+    "Sick leave longer than 3 consecutive days needs a doctor's note.",
+    "You get 24 days of paid annual leave, and you can carry up to 5 unused days into the next year. "
+    "For sick leave of more than 3 days in a row, you need a doctor's note.",
 )
 
 
@@ -33,8 +51,14 @@ st.set_page_config(page_title="HalluGuard", page_icon="🛡️", layout="wide")
 st.title("HalluGuard")
 st.caption("Which sentences in this answer does the source actually support? Each sentence is checked with an NLI model against every part of the source.")
 
-if st.button("Load an example"):
-    st.session_state.ctx, st.session_state.ans = EXAMPLE_CONTEXT, EXAMPLE_ANSWER
+st.caption(
+    f"Model: `{MODEL}` (the small one, so the free hosting can run it). "
+    "[Code and RAGTruth benchmark on GitHub](https://github.com/nancy6547/halluguard)"
+)
+cols = st.columns(len(EXAMPLES))
+for col, (name, (example_ctx, example_ans)) in zip(cols, EXAMPLES.items()):
+    if col.button(name, use_container_width=True):
+        st.session_state.ctx, st.session_state.ans = example_ctx, example_ans
 
 c1, c2 = st.columns(2)
 ctx = c1.text_area("Source (the retrieved context)", key="ctx", height=260)

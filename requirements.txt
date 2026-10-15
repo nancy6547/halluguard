@@ -1,0 +1,6 @@
+# For Streamlit Community Cloud (streamlit run app.py). The halluguard package itself is in this repo.
+streamlit>=1.35
+sentence-transformers>=2.7
+pandas>=2.0
+pyarrow>=14
+huggingface_hub>=0.20
