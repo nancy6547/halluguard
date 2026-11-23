@@ -10,9 +10,8 @@ import streamlit as st
 
 from halluguard import CONTRADICTED, SUPPORTED, NLIScorer, check
 
-# The hosted demo uses the small model so it fits in Streamlit Cloud's memory.
-# Run locally with HALLUGUARD_MODEL=cross-encoder/nli-deberta-v3-base for the benchmarked one.
-MODEL = os.getenv("HALLUGUARD_MODEL", "cross-encoder/nli-deberta-v3-xsmall")
+# Defaults to the benchmarked model. Set HALLUGUARD_MODEL=cross-encoder/nli-deberta-v3-xsmall on small hosts.
+MODEL = os.getenv("HALLUGUARD_MODEL", "cross-encoder/nli-deberta-v3-base")
 
 EXAMPLE_CONTEXT = (
     "The Eiffel Tower is a wrought-iron lattice tower in Paris. It was completed in 1889 as the entrance arch "
@@ -52,20 +51,28 @@ st.title("HalluGuard")
 st.caption("Which sentences in this answer does the source actually support? Each sentence is checked with an NLI model against every part of the source.")
 
 st.caption(
-    f"Model: `{MODEL}` (the small one, so the free hosting can run it). "
+    f"Model: `{MODEL}`. "
     "[Code and RAGTruth benchmark on GitHub](https://github.com/nancy6547/halluguard)"
 )
+
+# First visit: load the Eiffel example and show its result straight away.
+if "ctx" not in st.session_state:
+    st.session_state.ctx, st.session_state.ans = EXAMPLE_CONTEXT, EXAMPLE_ANSWER
+    st.session_state.run = True
+
 cols = st.columns(len(EXAMPLES))
 for col, (name, (example_ctx, example_ans)) in zip(cols, EXAMPLES.items()):
     if col.button(name, use_container_width=True):
         st.session_state.ctx, st.session_state.ans = example_ctx, example_ans
+        st.session_state.run = True
 
 c1, c2 = st.columns(2)
 ctx = c1.text_area("Source (the retrieved context)", key="ctx", height=260)
 ans = c2.text_area("Answer (what the LLM said)", key="ans", height=260)
 threshold = st.slider("Support needed to count as supported", 0.05, 0.95, 0.5, 0.05)
 
-if st.button("Check answer", type="primary", disabled=not (ctx.strip() and ans.strip())):
+clicked = st.button("Check answer", type="primary", disabled=not (ctx.strip() and ans.strip()))
+if (clicked or st.session_state.pop("run", False)) and ctx.strip() and ans.strip():
     with st.spinner(f"Checking with {MODEL.split('/')[-1]}..."):
         rep = check(ans, ctx, scorer(), threshold=threshold)
 
